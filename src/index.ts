@@ -1,5 +1,6 @@
 import { McpAgent } from "agents/mcp";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { z } from "zod";
 
 export class YouTubeResearchMCP extends McpAgent {
   server = new McpServer({
@@ -24,12 +25,18 @@ export class YouTubeResearchMCP extends McpAgent {
 
     this.server.tool(
       "search_youtube",
-      "Search YouTube videos and return useful research information.",
+      "Search YouTube videos for research.",
       {
-        query: "The YouTube search query",
-        maxResults: "Number of results to return, from 1 to 10",
+        query: z.string().describe("What you want to search for on YouTube"),
+        maxResults: z
+          .number()
+          .int()
+          .min(1)
+          .max(10)
+          .default(5)
+          .describe("Number of videos to return, from 1 to 10"),
       },
-      async ({ query, maxResults = 5 }) => {
+      async ({ query, maxResults }) => {
         const apiKey = (this.env as any).YOUTUBE_API_KEY;
 
         if (!apiKey) {
@@ -43,16 +50,14 @@ export class YouTubeResearchMCP extends McpAgent {
           };
         }
 
-        const limit = Math.min(Math.max(Number(maxResults) || 5, 1), 10);
-
         const url = new URL(
           "https://www.googleapis.com/youtube/v3/search",
         );
 
         url.searchParams.set("part", "snippet");
-        url.searchParams.set("q", String(query));
+        url.searchParams.set("q", query);
         url.searchParams.set("type", "video");
-        url.searchParams.set("maxResults", String(limit));
+        url.searchParams.set("maxResults", String(maxResults));
         url.searchParams.set("key", apiKey);
 
         const response = await fetch(url.toString());
@@ -70,7 +75,7 @@ export class YouTubeResearchMCP extends McpAgent {
           };
         }
 
-        const data = await response.json();
+        const data: any = await response.json();
 
         const results = (data.items || []).map((item: any) => ({
           title: item.snippet?.title,
