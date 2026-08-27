@@ -12,7 +12,9 @@
     "@modelcontextprotocol/sdk": "latest",
     "agents": "latest"
   },
-  "devDependencies": {
-    "wrangler": "latest"
-  }
+"dependencies": {
+  "@modelcontextprotocol/sdk": "latest",
+  "agents": "latest",
+  "zod": "latest"
+}
 }
