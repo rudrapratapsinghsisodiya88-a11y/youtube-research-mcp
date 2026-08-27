@@ -2,13 +2,17 @@
   "name": "youtube-research-mcp",
   "version": "1.0.0",
   "description": "YouTube Research MCP Server",
+  "private": true,
   "type": "module",
   "scripts": {
-    "start": "node server.js"
+    "deploy": "wrangler deploy",
+    "dev": "wrangler dev"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "latest",
-    "express": "latest",
-    "zod": "latest"
+    "agents": "latest"
+  },
+  "devDependencies": {
+    "wrangler": "latest"
   }
 }
