@@ -1,0 +1,12 @@
+{
+  "name": "youtube-research-mcp",
+  "version": "1.0.0",
+  "description": "YouTube Research MCP Server",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "latest"
+  }
+}
