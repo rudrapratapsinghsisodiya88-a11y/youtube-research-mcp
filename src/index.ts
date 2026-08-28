@@ -835,4 +835,223 @@ export class YouTubeResearchMCP extends McpAgent {
                 views + 1,
               );
 
-            const logVie
+          const logViewsPerDay =
+              Math.log10(
+                viewsPerDay + 1,
+              );
+
+            const engagementPoints =
+              engagementRate * 100;
+
+            const performanceScore =
+              logViews * 0.55 +
+              logViewsPerDay * 0.30 +
+              engagementPoints * 0.15;
+
+            detailedVideos.push(
+              {
+                videoId:
+                  video.id,
+
+                title:
+                  video.snippet
+                    ?.title,
+
+                channel:
+                  video.snippet
+                    ?.channelTitle,
+
+                channelId:
+                  video.snippet
+                    ?.channelId,
+
+                description:
+                  video.snippet
+                    ?.description,
+
+                publishedAt,
+
+                year: publishedAt
+                  ? new Date(
+                      publishedAt,
+                    ).getUTCFullYear()
+                  : null,
+
+                duration:
+                  video
+                    .contentDetails
+                    ?.duration,
+
+                views,
+                likes,
+                comments,
+
+                ageDays,
+
+                viewsPerDay:
+                  Math.round(
+                    viewsPerDay * 100,
+                  ) / 100,
+
+                likeRate:
+                  Math.round(
+                    likeRate * 10000,
+                  ) / 100,
+
+                commentRate:
+                  Math.round(
+                    commentRate * 10000,
+                  ) / 100,
+
+                engagementRate:
+                  Math.round(
+                    engagementRate *
+                      10000,
+                  ) / 100,
+
+                performanceScore:
+                  Math.round(
+                    performanceScore *
+                      100,
+                  ) / 100,
+
+                videoUrl:
+                  `https://www.youtube.com/watch?v=${video.id}`,
+              },
+            );
+          }
+        }
+
+        // =====================================================
+        // STEP 3: MINIMUM VIEWS FILTER
+        // =====================================================
+
+        const filtered =
+          detailedVideos.filter(
+            (video) =>
+              video.views >=
+              minViews,
+          );
+
+        // =====================================================
+        // STEP 4: CREATE SEPARATE RANKINGS
+        // =====================================================
+
+        const byViews = [
+          ...filtered,
+        ]
+          .sort(
+            (a, b) =>
+              b.views - a.views,
+          )
+          .slice(
+            0,
+            topResults,
+          );
+
+        const byViewsPerDay = [
+          ...filtered,
+        ]
+          .sort(
+            (a, b) =>
+              b.viewsPerDay -
+              a.viewsPerDay,
+          )
+          .slice(
+            0,
+            topResults,
+          );
+
+        const byEngagement = [
+          ...filtered,
+        ]
+          .sort(
+            (a, b) =>
+              b.engagementRate -
+              a.engagementRate,
+          )
+          .slice(
+            0,
+            topResults,
+          );
+
+        const byOverallPerformance = [
+          ...filtered,
+        ]
+          .sort(
+            (a, b) =>
+              b.performanceScore -
+              a.performanceScore,
+          )
+          .slice(
+            0,
+            topResults,
+          );
+
+        // =====================================================
+        // STEP 5: FINAL RESULT
+        // =====================================================
+
+        const result = {
+          channelId,
+
+          scanRange: {
+            startYear,
+            endYear,
+          },
+
+          query:
+            query || null,
+
+          settings: {
+            resultsPerPage,
+            pagesPerYear,
+            topResults,
+            minViews,
+          },
+
+          discovery: {
+            totalUniqueVideos:
+              discoveredVideos.length,
+
+            videosWithStatistics:
+              detailedVideos.length,
+
+            videosAfterMinViewsFilter:
+              filtered.length,
+
+            yearlyDiscovery:
+              yearlyStats,
+          },
+
+          rankings: {
+            highestViews:
+              byViews,
+
+            highestViewsPerDay:
+              byViewsPerDay,
+
+            highestEngagement:
+              byEngagement,
+
+            overallPerformance:
+              byOverallPerformance,
+          },
+        };
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify(
+                result,
+                null,
+                2,
+              ),
+            },
+          ],
+        };
+      },
+    );
+  }
+}
