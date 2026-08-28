@@ -9,6 +9,7 @@ export class YouTubeResearchMCP extends McpAgent {
   });
 
   async init() {
+
     // =========================================================
     // TOOL 1: TEST CONNECTOR
     // =========================================================
@@ -26,6 +27,7 @@ export class YouTubeResearchMCP extends McpAgent {
         ],
       }),
     );
+
 
     // =========================================================
     // TOOL 2: SEARCH YOUTUBE
@@ -45,18 +47,22 @@ export class YouTubeResearchMCP extends McpAgent {
           .min(1)
           .max(10)
           .default(5)
-          .describe("Number of videos to return, from 1 to 10"),
+          .describe(
+            "Number of videos to return, from 1 to 10",
+          ),
       },
 
       async ({ query, maxResults }) => {
-        const apiKey = (this.env as any).YOUTUBE_API_KEY;
+        const apiKey =
+          (this.env as any).YOUTUBE_API_KEY;
 
         if (!apiKey) {
           return {
             content: [
               {
                 type: "text",
-                text: "YouTube API key is not configured.",
+                text:
+                  "YouTube API key is not configured.",
               },
             ],
           };
@@ -66,50 +72,96 @@ export class YouTubeResearchMCP extends McpAgent {
           "https://www.googleapis.com/youtube/v3/search",
         );
 
-        url.searchParams.set("part", "snippet");
-        url.searchParams.set("q", query);
-        url.searchParams.set("type", "video");
-        url.searchParams.set("maxResults", String(maxResults));
-        url.searchParams.set("key", apiKey);
+        url.searchParams.set(
+          "part",
+          "snippet",
+        );
 
-        const response = await fetch(url.toString());
+        url.searchParams.set(
+          "q",
+          query,
+        );
+
+        url.searchParams.set(
+          "type",
+          "video",
+        );
+
+        url.searchParams.set(
+          "maxResults",
+          String(maxResults),
+        );
+
+        url.searchParams.set(
+          "key",
+          apiKey,
+        );
+
+        const response =
+          await fetch(
+            url.toString(),
+          );
 
         if (!response.ok) {
-          const errorText = await response.text();
+          const errorText =
+            await response.text();
 
           return {
             content: [
               {
                 type: "text",
-                text: `YouTube API error: ${response.status} ${errorText}`,
+                text:
+                  `YouTube API error: ${response.status} ${errorText}`,
               },
             ],
           };
         }
 
-        const data: any = await response.json();
+        const data: any =
+          await response.json();
 
-        const results = (data.items || []).map((item: any) => ({
-          videoId: item.id?.videoId,
-          title: item.snippet?.title,
-          channel: item.snippet?.channelTitle,
-          channelId: item.snippet?.channelId,
-          description: item.snippet?.description,
-          publishedAt: item.snippet?.publishedAt,
-          videoUrl:
-            `https://www.youtube.com/watch?v=${item.id?.videoId}`,
-        }));
+        const results =
+          (data.items || []).map(
+            (item: any) => ({
+              videoId:
+                item.id?.videoId,
+
+              title:
+                item.snippet?.title,
+
+              channel:
+                item.snippet?.channelTitle,
+
+              channelId:
+                item.snippet?.channelId,
+
+              description:
+                item.snippet?.description,
+
+              publishedAt:
+                item.snippet?.publishedAt,
+
+              videoUrl:
+                `https://www.youtube.com/watch?v=${item.id?.videoId}`,
+            }),
+          );
 
         return {
           content: [
             {
               type: "text",
-              text: JSON.stringify(results, null, 2),
+              text:
+                JSON.stringify(
+                  results,
+                  null,
+                  2,
+                ),
             },
           ],
         };
       },
     );
+
 
     // =========================================================
     // TOOL 3: GET VIDEO DETAILS
@@ -127,14 +179,16 @@ export class YouTubeResearchMCP extends McpAgent {
       },
 
       async ({ videoId }) => {
-        const apiKey = (this.env as any).YOUTUBE_API_KEY;
+        const apiKey =
+          (this.env as any).YOUTUBE_API_KEY;
 
         if (!apiKey) {
           return {
             content: [
               {
                 type: "text",
-                text: "YouTube API key is not configured.",
+                text:
+                  "YouTube API key is not configured.",
               },
             ],
           };
@@ -149,13 +203,24 @@ export class YouTubeResearchMCP extends McpAgent {
           "snippet,statistics,contentDetails",
         );
 
-        url.searchParams.set("id", videoId);
-        url.searchParams.set("key", apiKey);
+        url.searchParams.set(
+          "id",
+          videoId,
+        );
 
-        const response = await fetch(url.toString());
+        url.searchParams.set(
+          "key",
+          apiKey,
+        );
+
+        const response =
+          await fetch(
+            url.toString(),
+          );
 
         if (!response.ok) {
-          const errorText = await response.text();
+          const errorText =
+            await response.text();
 
           return {
             content: [
@@ -168,34 +233,67 @@ export class YouTubeResearchMCP extends McpAgent {
           };
         }
 
-        const data: any = await response.json();
+        const data: any =
+          await response.json();
 
-        if (!data.items || data.items.length === 0) {
+        if (
+          !data.items ||
+          data.items.length === 0
+        ) {
           return {
             content: [
               {
                 type: "text",
-                text: "Video not found.",
+                text:
+                  "Video not found.",
               },
             ],
           };
         }
 
-        const video = data.items[0];
+        const video =
+          data.items[0];
 
         const result = {
-          videoId: video.id,
-          title: video.snippet?.title,
-          channel: video.snippet?.channelTitle,
-          channelId: video.snippet?.channelId,
-          description: video.snippet?.description,
-          publishedAt: video.snippet?.publishedAt,
-          duration: video.contentDetails?.duration,
-          views: Number(video.statistics?.viewCount || 0),
-          likes: Number(video.statistics?.likeCount || 0),
-          comments: Number(
-            video.statistics?.commentCount || 0,
-          ),
+          videoId:
+            video.id,
+
+          title:
+            video.snippet?.title,
+
+          channel:
+            video.snippet?.channelTitle,
+
+          channelId:
+            video.snippet?.channelId,
+
+          description:
+            video.snippet?.description,
+
+          publishedAt:
+            video.snippet?.publishedAt,
+
+          duration:
+            video.contentDetails?.duration,
+
+          views:
+            Number(
+              video.statistics
+                ?.viewCount || 0,
+            ),
+
+          likes:
+            Number(
+              video.statistics
+                ?.likeCount || 0,
+            ),
+
+          comments:
+            Number(
+              video.statistics
+                ?.commentCount || 0,
+            ),
+
           videoUrl:
             `https://www.youtube.com/watch?v=${videoId}`,
         };
@@ -204,12 +302,18 @@ export class YouTubeResearchMCP extends McpAgent {
           content: [
             {
               type: "text",
-              text: JSON.stringify(result, null, 2),
+              text:
+                JSON.stringify(
+                  result,
+                  null,
+                  2,
+                ),
             },
           ],
         };
       },
     );
+
 
     // =========================================================
     // TOOL 4: CHANNEL STATISTICS
@@ -221,18 +325,22 @@ export class YouTubeResearchMCP extends McpAgent {
       {
         channelId: z
           .string()
-          .describe("The YouTube channel ID"),
+          .describe(
+            "The YouTube channel ID",
+          ),
       },
 
       async ({ channelId }) => {
-        const apiKey = (this.env as any).YOUTUBE_API_KEY;
+        const apiKey =
+          (this.env as any).YOUTUBE_API_KEY;
 
         if (!apiKey) {
           return {
             content: [
               {
                 type: "text",
-                text: "YouTube API key is not configured.",
+                text:
+                  "YouTube API key is not configured.",
               },
             ],
           };
@@ -257,9 +365,10 @@ export class YouTubeResearchMCP extends McpAgent {
           apiKey,
         );
 
-        const response = await fetch(
-          url.toString(),
-        );
+        const response =
+          await fetch(
+            url.toString(),
+          );
 
         if (!response.ok) {
           const errorText =
@@ -270,8 +379,7 @@ export class YouTubeResearchMCP extends McpAgent {
               {
                 type: "text",
                 text:
-                  `YouTube channel statistics error: ` +
-                  `${response.status} ${errorText}`,
+                  `YouTube channel statistics error: ${response.status} ${errorText}`,
               },
             ],
           };
@@ -288,7 +396,8 @@ export class YouTubeResearchMCP extends McpAgent {
             content: [
               {
                 type: "text",
-                text: "Channel not found.",
+                text:
+                  "Channel not found.",
               },
             ],
           };
@@ -311,7 +420,8 @@ export class YouTubeResearchMCP extends McpAgent {
             channel.snippet?.publishedAt,
 
           country:
-            channel.snippet?.country || null,
+            channel.snippet?.country ||
+            null,
 
           subscribers:
             Number(
@@ -351,16 +461,18 @@ export class YouTubeResearchMCP extends McpAgent {
           content: [
             {
               type: "text",
-              text: JSON.stringify(
-                result,
-                null,
-                2,
-              ),
+              text:
+                JSON.stringify(
+                  result,
+                  null,
+                  2,
+                ),
             },
           ],
         };
       },
     );
+
 
     // =========================================================
     // TOOL 5: HISTORICAL HIGH PERFORMERS
@@ -368,12 +480,15 @@ export class YouTubeResearchMCP extends McpAgent {
 
     this.server.tool(
       "search_historical_videos",
+
       "Scan a YouTube channel year-by-year, follow pagination for every year, collect historical videos, fetch their statistics, calculate multiple performance metrics, and return separate rankings for views, views per day, engagement, and overall performance.",
 
       {
         channelId: z
           .string()
-          .describe("The YouTube channel ID"),
+          .describe(
+            "The YouTube channel ID",
+          ),
 
         startYear: z
           .number()
@@ -381,7 +496,9 @@ export class YouTubeResearchMCP extends McpAgent {
           .min(2005)
           .max(2100)
           .default(2019)
-          .describe("First year to scan"),
+          .describe(
+            "First year to scan",
+          ),
 
         endYear: z
           .number()
@@ -391,7 +508,9 @@ export class YouTubeResearchMCP extends McpAgent {
           .default(
             new Date().getUTCFullYear(),
           )
-          .describe("Last year to scan"),
+          .describe(
+            "Last year to scan",
+          ),
 
         query: z
           .string()
@@ -450,6 +569,7 @@ export class YouTubeResearchMCP extends McpAgent {
         topResults,
         minViews,
       }) => {
+
         const apiKey =
           (this.env as any)
             .YOUTUBE_API_KEY;
@@ -459,7 +579,8 @@ export class YouTubeResearchMCP extends McpAgent {
             content: [
               {
                 type: "text",
-                text: "YouTube API key is not configured.",
+                text:
+                  "YouTube API key is not configured.",
               },
             ],
           };
@@ -477,6 +598,7 @@ export class YouTubeResearchMCP extends McpAgent {
           };
         }
 
+
         // =====================================================
         // STEP 1: YEAR-BY-YEAR HISTORICAL SEARCH
         // =====================================================
@@ -487,11 +609,13 @@ export class YouTubeResearchMCP extends McpAgent {
         const yearlyStats:
           Record<string, number> = {};
 
+
         for (
           let year = startYear;
           year <= endYear;
           year++
         ) {
+
           const publishedAfter =
             `${year}-01-01T00:00:00Z`;
 
@@ -503,12 +627,15 @@ export class YouTubeResearchMCP extends McpAgent {
 
           let pagesScanned = 0;
 
-          let videosFoundThisYear = 0;
+          let videosFoundThisYear =
+            0;
+
 
           while (
             pagesScanned <
             pagesPerYear
           ) {
+
             const searchUrl =
               new URL(
                 "https://www.googleapis.com/youtube/v3/search",
@@ -559,6 +686,7 @@ export class YouTubeResearchMCP extends McpAgent {
               apiKey,
             );
 
+
             if (
               query &&
               query.trim()
@@ -569,6 +697,7 @@ export class YouTubeResearchMCP extends McpAgent {
               );
             }
 
+
             if (pageToken) {
               searchUrl.searchParams.set(
                 "pageToken",
@@ -576,10 +705,12 @@ export class YouTubeResearchMCP extends McpAgent {
               );
             }
 
+
             const response =
               await fetch(
                 searchUrl.toString(),
               );
+
 
             if (!response.ok) {
               const errorText =
@@ -590,12 +721,12 @@ export class YouTubeResearchMCP extends McpAgent {
                   {
                     type: "text",
                     text:
-                      `Historical search failed for ${year}: ` +
-                      `${response.status} ${errorText}`,
+                      `Historical search failed for ${year}: ${response.status} ${errorText}`,
                   },
                 ],
               };
             }
+
 
             const data: any =
               await response.json();
@@ -603,9 +734,11 @@ export class YouTubeResearchMCP extends McpAgent {
             const items =
               data.items || [];
 
+
             for (
               const item of items
             ) {
+
               const videoId =
                 item.id?.videoId;
 
@@ -613,31 +746,40 @@ export class YouTubeResearchMCP extends McpAgent {
                 continue;
               }
 
+
               if (
                 !discovered.has(
                   videoId,
                 )
               ) {
+
                 discovered.set(
                   videoId,
                   {
                     videoId,
+
                     title:
                       item.snippet
                         ?.title,
+
                     channel:
                       item.snippet
                         ?.channelTitle,
+
                     channelId:
                       item.snippet
                         ?.channelId,
+
                     description:
                       item.snippet
                         ?.description,
+
                     publishedAt:
                       item.snippet
                         ?.publishedAt,
+
                     year,
+
                     videoUrl:
                       `https://www.youtube.com/watch?v=${videoId}`,
                   },
@@ -647,7 +789,9 @@ export class YouTubeResearchMCP extends McpAgent {
               }
             }
 
+
             pagesScanned++;
+
 
             if (
               !data.nextPageToken
@@ -655,47 +799,58 @@ export class YouTubeResearchMCP extends McpAgent {
               break;
             }
 
+
             pageToken =
               data.nextPageToken;
           }
 
+
           yearlyStats[
             String(year)
-          ] = videosFoundThisYear;
+          ] =
+            videosFoundThisYear;
         }
+
 
         const discoveredVideos =
           Array.from(
             discovered.values(),
           );
 
+
         if (
-          discoveredVideos.length ===
-          0
+          discoveredVideos.length === 0
         ) {
           return {
             content: [
               {
                 type: "text",
-                text: JSON.stringify(
-                  {
-                    message:
-                      "No historical videos found.",
-                    channelId,
-                    startYear,
-                    endYear,
-                    query:
-                      query || null,
-                    yearlyDiscovery:
-                      yearlyStats,
-                  },
-                  null,
-                  2,
-                ),
+                text:
+                  JSON.stringify(
+                    {
+                      message:
+                        "No historical videos found.",
+
+                      channelId,
+
+                      startYear,
+
+                      endYear,
+
+                      query:
+                        query || null,
+
+                      yearlyDiscovery:
+                        yearlyStats,
+                    },
+                    null,
+                    2,
+                  ),
               },
             ],
           };
         }
+
 
         // =====================================================
         // STEP 2: GET VIDEO STATISTICS
@@ -704,26 +859,31 @@ export class YouTubeResearchMCP extends McpAgent {
         const detailedVideos:
           any[] = [];
 
+
         for (
           let i = 0;
           i < discoveredVideos.length;
           i += 50
         ) {
+
           const batch =
             discoveredVideos.slice(
               i,
               i + 50,
             );
 
+
           const videosUrl =
             new URL(
               "https://www.googleapis.com/youtube/v3/videos",
             );
 
+
           videosUrl.searchParams.set(
             "part",
             "snippet,statistics,contentDetails",
           );
+
 
           videosUrl.searchParams.set(
             "id",
@@ -735,15 +895,18 @@ export class YouTubeResearchMCP extends McpAgent {
               .join(","),
           );
 
+
           videosUrl.searchParams.set(
             "key",
             apiKey,
           );
 
+
           const response =
             await fetch(
               videosUrl.toString(),
             );
+
 
           if (!response.ok) {
             const errorText =
@@ -754,20 +917,22 @@ export class YouTubeResearchMCP extends McpAgent {
                 {
                   type: "text",
                   text:
-                    `YouTube statistics error: ` +
-                    `${response.status} ${errorText}`,
+                    `YouTube statistics error: ${response.status} ${errorText}`,
                 },
               ],
             };
           }
 
+
           const data: any =
             await response.json();
+
 
           for (
             const video of
               data.items || []
           ) {
+
             const views =
               Number(
                 video.statistics
@@ -785,7 +950,7 @@ export class YouTubeResearchMCP extends McpAgent {
                 video.statistics
                   ?.commentCount || 0,
               );
-
+            
             const publishedAt =
               video.snippet
                 ?.publishedAt;
@@ -830,18 +995,23 @@ export class YouTubeResearchMCP extends McpAgent {
                   views
                 : 0;
 
+            // -------------------------------------------------
+            // Internal research score
+            // -------------------------------------------------
+
             const logViews =
               Math.log10(
                 views + 1,
               );
 
-          const logViewsPerDay =
+            const logViewsPerDay =
               Math.log10(
                 viewsPerDay + 1,
               );
 
             const engagementPoints =
-              engagementRate * 100;
+              engagementRate *
+              100;
 
             const performanceScore =
               logViews * 0.55 +
@@ -883,24 +1053,29 @@ export class YouTubeResearchMCP extends McpAgent {
                     ?.duration,
 
                 views,
+
                 likes,
+
                 comments,
 
                 ageDays,
 
                 viewsPerDay:
                   Math.round(
-                    viewsPerDay * 100,
+                    viewsPerDay *
+                      100,
                   ) / 100,
 
                 likeRate:
                   Math.round(
-                    likeRate * 10000,
+                    likeRate *
+                      10000,
                   ) / 100,
 
                 commentRate:
                   Math.round(
-                    commentRate * 10000,
+                    commentRate *
+                      10000,
                   ) / 100,
 
                 engagementRate:
@@ -922,6 +1097,7 @@ export class YouTubeResearchMCP extends McpAgent {
           }
         }
 
+
         // =====================================================
         // STEP 3: MINIMUM VIEWS FILTER
         // =====================================================
@@ -933,6 +1109,7 @@ export class YouTubeResearchMCP extends McpAgent {
               minViews,
           );
 
+
         // =====================================================
         // STEP 4: CREATE SEPARATE RANKINGS
         // =====================================================
@@ -942,12 +1119,14 @@ export class YouTubeResearchMCP extends McpAgent {
         ]
           .sort(
             (a, b) =>
-              b.views - a.views,
+              b.views -
+              a.views,
           )
           .slice(
             0,
             topResults,
           );
+
 
         const byViewsPerDay = [
           ...filtered,
@@ -962,6 +1141,7 @@ export class YouTubeResearchMCP extends McpAgent {
             topResults,
           );
 
+
         const byEngagement = [
           ...filtered,
         ]
@@ -975,6 +1155,7 @@ export class YouTubeResearchMCP extends McpAgent {
             topResults,
           );
 
+
         const byOverallPerformance = [
           ...filtered,
         ]
@@ -987,6 +1168,7 @@ export class YouTubeResearchMCP extends McpAgent {
             0,
             topResults,
           );
+
 
         // =====================================================
         // STEP 5: FINAL RESULT
@@ -1039,19 +1221,21 @@ export class YouTubeResearchMCP extends McpAgent {
           },
         };
 
+
         return {
           content: [
             {
               type: "text",
-              text: JSON.stringify(
-                result,
-                null,
-                2,
-              ),
+              text:
+                JSON.stringify(
+                  result,
+                  null,
+                  2,
+                ),
             },
           ],
         };
       },
     );
   }
-}
+              }
