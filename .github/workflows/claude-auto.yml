@@ -1,6 +1,9 @@
 name: Claude Auto Research
 
 on:
+  push:
+    branches:
+      - main
   workflow_dispatch:
   schedule:
     - cron: "0 */5 * * *"
