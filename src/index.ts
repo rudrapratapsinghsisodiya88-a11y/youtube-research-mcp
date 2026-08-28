@@ -1238,4 +1238,6 @@ export class YouTubeResearchMCP extends McpAgent {
       },
     );
   }
-              }
+}
+
+export default YouTubeResearchMCP;
