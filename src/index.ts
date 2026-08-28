@@ -1240,4 +1240,4 @@ export class YouTubeResearchMCP extends McpAgent {
   }
 }
 
-export default YouTubeResearchMCP;
+export default YouTubeResearchMCP.serve("/mcp");
