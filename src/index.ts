@@ -212,7 +212,158 @@ export class YouTubeResearchMCP extends McpAgent {
     );
 
     // =========================================================
-    // TOOL 4: HISTORICAL HIGH PERFORMERS
+    // TOOL 4: CHANNEL STATISTICS
+    // =========================================================
+
+    this.server.tool(
+      "get_channel_statistics",
+      "Get basic statistics and information about a YouTube channel.",
+      {
+        channelId: z
+          .string()
+          .describe("The YouTube channel ID"),
+      },
+
+      async ({ channelId }) => {
+        const apiKey = (this.env as any).YOUTUBE_API_KEY;
+
+        if (!apiKey) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: "YouTube API key is not configured.",
+              },
+            ],
+          };
+        }
+
+        const url = new URL(
+          "https://www.googleapis.com/youtube/v3/channels",
+        );
+
+        url.searchParams.set(
+          "part",
+          "snippet,statistics,contentDetails",
+        );
+
+        url.searchParams.set(
+          "id",
+          channelId,
+        );
+
+        url.searchParams.set(
+          "key",
+          apiKey,
+        );
+
+        const response = await fetch(
+          url.toString(),
+        );
+
+        if (!response.ok) {
+          const errorText =
+            await response.text();
+
+          return {
+            content: [
+              {
+                type: "text",
+                text:
+                  `YouTube channel statistics error: ` +
+                  `${response.status} ${errorText}`,
+              },
+            ],
+          };
+        }
+
+        const data: any =
+          await response.json();
+
+        if (
+          !data.items ||
+          data.items.length === 0
+        ) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: "Channel not found.",
+              },
+            ],
+          };
+        }
+
+        const channel =
+          data.items[0];
+
+        const result = {
+          channelId:
+            channel.id,
+
+          channelName:
+            channel.snippet?.title,
+
+          description:
+            channel.snippet?.description,
+
+          publishedAt:
+            channel.snippet?.publishedAt,
+
+          country:
+            channel.snippet?.country || null,
+
+          subscribers:
+            Number(
+              channel.statistics
+                ?.subscriberCount || 0,
+            ),
+
+          totalViews:
+            Number(
+              channel.statistics
+                ?.viewCount || 0,
+            ),
+
+          totalVideos:
+            Number(
+              channel.statistics
+                ?.videoCount || 0,
+            ),
+
+          hiddenSubscriberCount:
+            Boolean(
+              channel.statistics
+                ?.hiddenSubscriberCount ||
+                false,
+            ),
+
+          uploadsPlaylistId:
+            channel.contentDetails
+              ?.relatedPlaylists
+              ?.uploads || null,
+
+          channelUrl:
+            `https://www.youtube.com/channel/${channel.id}`,
+        };
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify(
+                result,
+                null,
+                2,
+              ),
+            },
+          ],
+        };
+      },
+    );
+
+    // =========================================================
+    // TOOL 5: HISTORICAL HIGH PERFORMERS
     // =========================================================
 
     this.server.tool(
@@ -237,7 +388,9 @@ export class YouTubeResearchMCP extends McpAgent {
           .int()
           .min(2005)
           .max(2100)
-          .default(new Date().getUTCFullYear())
+          .default(
+            new Date().getUTCFullYear(),
+          )
           .describe("Last year to scan"),
 
         query: z
@@ -297,7 +450,9 @@ export class YouTubeResearchMCP extends McpAgent {
         topResults,
         minViews,
       }) => {
-        const apiKey = (this.env as any).YOUTUBE_API_KEY;
+        const apiKey =
+          (this.env as any)
+            .YOUTUBE_API_KEY;
 
         if (!apiKey) {
           return {
@@ -326,9 +481,11 @@ export class YouTubeResearchMCP extends McpAgent {
         // STEP 1: YEAR-BY-YEAR HISTORICAL SEARCH
         // =====================================================
 
-        const discovered = new Map<string, any>();
+        const discovered =
+          new Map<string, any>();
 
-        const yearlyStats: Record<string, number> = {};
+        const yearlyStats:
+          Record<string, number> = {};
 
         for (
           let year = startYear;
@@ -341,18 +498,21 @@ export class YouTubeResearchMCP extends McpAgent {
           const publishedBefore =
             `${year + 1}-01-01T00:00:00Z`;
 
-          let pageToken: string | undefined;
+          let pageToken:
+            string | undefined;
 
           let pagesScanned = 0;
 
           let videosFoundThisYear = 0;
 
           while (
-            pagesScanned < pagesPerYear
+            pagesScanned <
+            pagesPerYear
           ) {
-            const searchUrl = new URL(
-              "https://www.googleapis.com/youtube/v3/search",
-            );
+            const searchUrl =
+              new URL(
+                "https://www.googleapis.com/youtube/v3/search",
+              );
 
             searchUrl.searchParams.set(
               "part",
@@ -369,8 +529,6 @@ export class YouTubeResearchMCP extends McpAgent {
               "video",
             );
 
-            // Date order helps us systematically
-            // walk through the historical result set.
             searchUrl.searchParams.set(
               "order",
               "date",
@@ -512,7 +670,8 @@ export class YouTubeResearchMCP extends McpAgent {
           );
 
         if (
-          discoveredVideos.length === 0
+          discoveredVideos.length ===
+          0
         ) {
           return {
             content: [
@@ -527,6 +686,8 @@ export class YouTubeResearchMCP extends McpAgent {
                     endYear,
                     query:
                       query || null,
+                    yearlyDiscovery:
+                      yearlyStats,
                   },
                   null,
                   2,
@@ -540,8 +701,8 @@ export class YouTubeResearchMCP extends McpAgent {
         // STEP 2: GET VIDEO STATISTICS
         // =====================================================
 
-        const detailedVideos: any[] =
-          [];
+        const detailedVideos:
+          any[] = [];
 
         for (
           let i = 0;
@@ -669,149 +830,9 @@ export class YouTubeResearchMCP extends McpAgent {
                   views
                 : 0;
 
-            // -------------------------------------------------
-            // Internal research score
-            // -------------------------------------------------
-
             const logViews =
               Math.log10(
                 views + 1,
               );
 
-            const logViewsPerDay =
-              Math.log10(
-                viewsPerDay + 1,
-              );
-
-            const engagementPoints =
-              engagementRate *
-              100;
-
-            const performanceScore =
-              logViews * 0.55 +
-              logViewsPerDay * 0.30 +
-              engagementPoints * 0.15;
-
-            detailedVideos.push(
-              {
-                videoId:
-                  video.id,
-
-                title:
-                  video.snippet
-                    ?.title,
-
-                channel:
-                  video.snippet
-                    ?.channelTitle,
-
-                channelId:
-                  video.snippet
-                    ?.channelId,
-
-                description:
-                  video.snippet
-                    ?.description,
-
-                publishedAt,
-
-                year: publishedAt
-                  ? new Date(
-                      publishedAt,
-                    ).getUTCFullYear()
-                  : null,
-
-                duration:
-                  video
-                    .contentDetails
-                    ?.duration,
-
-                views,
-                likes,
-                comments,
-
-                ageDays,
-
-                viewsPerDay:
-                  Math.round(
-                    viewsPerDay *
-                      100,
-                  ) / 100,
-
-                likeRate:
-                  Math.round(
-                    likeRate *
-                      10000,
-                  ) / 100,
-
-                commentRate:
-                  Math.round(
-                    commentRate *
-                      10000,
-                  ) / 100,
-
-                engagementRate:
-                  Math.round(
-                    engagementRate *
-                      10000,
-                  ) / 100,
-
-                performanceScore:
-                  Math.round(
-                    performanceScore *
-                      100,
-                  ) / 100,
-
-                videoUrl:
-                  `https://www.youtube.com/watch?v=${video.id}`,
-              },
-            );
-          }
-        }
-
-        // =====================================================
-        // STEP 3: MINIMUM VIEWS FILTER
-        // =====================================================
-
-        const filtered =
-          detailedVideos.filter(
-            (video) =>
-              video.views >=
-              minViews,
-          );
-
-        // =====================================================
-        // STEP 4: CREATE SEPARATE RANKINGS
-        // =====================================================
-
-        const byViews = [
-          ...filtered,
-        ]
-          .sort(
-            (a, b) =>
-              b.views - a.views,
-          )
-          .slice(
-            0,
-            topResults,
-          );
-
-        const byViewsPerDay = [
-          ...filtered,
-        ]
-          .sort(
-            (a, b) =>
-              b.viewsPerDay -
-              a.viewsPerDay,
-          )
-          .slice(
-            0,
-            topResults,
-          );
-
-        const byEngagement = [
-          ...filtered,
-        ]
-          .sort(
-            (a, b) =>
-              b.e
+            const logVie
