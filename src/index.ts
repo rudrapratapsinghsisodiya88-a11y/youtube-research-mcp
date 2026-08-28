@@ -90,6 +90,7 @@ export class YouTubeResearchMCP extends McpAgent {
         const data: any = await response.json();
 
         const results = (data.items || []).map((item: any) => ({
+          videoId: item.id?.videoId,
           title: item.snippet?.title,
           channel: item.snippet?.channelTitle,
           channelId: item.snippet?.channelId,
@@ -183,6 +184,7 @@ export class YouTubeResearchMCP extends McpAgent {
         const video = data.items[0];
 
         const result = {
+          videoId: video.id,
           title: video.snippet?.title,
           channel: video.snippet?.channelTitle,
           channelId: video.snippet?.channelId,
@@ -215,7 +217,8 @@ export class YouTubeResearchMCP extends McpAgent {
 
     this.server.tool(
       "search_historical_videos",
-      "Scan multiple years of a YouTube channel and find historical high-performing videos. Searches each year separately, collects candidates, removes duplicates, gets current statistics, calculates views per day and engagement, and ranks the results.",
+      "Scan a YouTube channel year-by-year, follow pagination for every year, collect historical videos, fetch their statistics, calculate multiple performance metrics, and return separate rankings for views, views per day, engagement, and overall performance.",
+
       {
         channelId: z
           .string()
@@ -244,24 +247,24 @@ export class YouTubeResearchMCP extends McpAgent {
             "Optional keyword/topic to narrow the historical search",
           ),
 
-        resultsPerYear: z
+        resultsPerPage: z
           .number()
           .int()
           .min(1)
           .max(50)
-          .default(25)
+          .default(50)
           .describe(
-            "Maximum number of search candidates to collect per year",
+            "Number of YouTube search results requested per page",
           ),
 
         pagesPerYear: z
           .number()
           .int()
           .min(1)
-          .max(5)
-          .default(3)
+          .max(20)
+          .default(5)
           .describe(
-            "Maximum YouTube search pages to scan for each year",
+            "Maximum number of search pages to scan for each year",
           ),
 
         topResults: z
@@ -271,7 +274,7 @@ export class YouTubeResearchMCP extends McpAgent {
           .max(50)
           .default(20)
           .describe(
-            "Number of final historical performers to return",
+            "Number of videos returned in each ranking",
           ),
 
         minViews: z
@@ -289,7 +292,7 @@ export class YouTubeResearchMCP extends McpAgent {
         startYear,
         endYear,
         query,
-        resultsPerYear,
+        resultsPerPage,
         pagesPerYear,
         topResults,
         minViews,
@@ -319,11 +322,13 @@ export class YouTubeResearchMCP extends McpAgent {
           };
         }
 
-        // -----------------------------------------------------
-        // STEP 1: Discover historical videos
-        // -----------------------------------------------------
+        // =====================================================
+        // STEP 1: YEAR-BY-YEAR HISTORICAL SEARCH
+        // =====================================================
 
         const discovered = new Map<string, any>();
+
+        const yearlyStats: Record<string, number> = {};
 
         for (
           let year = startYear;
@@ -337,9 +342,14 @@ export class YouTubeResearchMCP extends McpAgent {
             `${year + 1}-01-01T00:00:00Z`;
 
           let pageToken: string | undefined;
+
           let pagesScanned = 0;
 
-          while (pagesScanned < pagesPerYear) {
+          let videosFoundThisYear = 0;
+
+          while (
+            pagesScanned < pagesPerYear
+          ) {
             const searchUrl = new URL(
               "https://www.googleapis.com/youtube/v3/search",
             );
@@ -359,6 +369,8 @@ export class YouTubeResearchMCP extends McpAgent {
               "video",
             );
 
+            // Date order helps us systematically
+            // walk through the historical result set.
             searchUrl.searchParams.set(
               "order",
               "date",
@@ -367,7 +379,10 @@ export class YouTubeResearchMCP extends McpAgent {
             searchUrl.searchParams.set(
               "maxResults",
               String(
-                Math.min(resultsPerYear, 50),
+                Math.min(
+                  resultsPerPage,
+                  50,
+                ),
               ),
             );
 
@@ -386,7 +401,10 @@ export class YouTubeResearchMCP extends McpAgent {
               apiKey,
             );
 
-            if (query && query.trim()) {
+            if (
+              query &&
+              query.trim()
+            ) {
               searchUrl.searchParams.set(
                 "q",
                 query.trim(),
@@ -400,9 +418,10 @@ export class YouTubeResearchMCP extends McpAgent {
               );
             }
 
-            const response = await fetch(
-              searchUrl.toString(),
-            );
+            const response =
+              await fetch(
+                searchUrl.toString(),
+              );
 
             if (!response.ok) {
               const errorText =
@@ -423,44 +442,68 @@ export class YouTubeResearchMCP extends McpAgent {
             const data: any =
               await response.json();
 
+            const items =
+              data.items || [];
+
             for (
-              const item of data.items || []
+              const item of items
             ) {
               const videoId =
                 item.id?.videoId;
 
-              if (!videoId) continue;
+              if (!videoId) {
+                continue;
+              }
 
-              discovered.set(
-                videoId,
-                {
+              if (
+                !discovered.has(
                   videoId,
-                  title:
-                    item.snippet?.title,
-                  channel:
-                    item.snippet?.channelTitle,
-                  channelId:
-                    item.snippet?.channelId,
-                  description:
-                    item.snippet?.description,
-                  publishedAt:
-                    item.snippet?.publishedAt,
-                  year,
-                  videoUrl:
-                    `https://www.youtube.com/watch?v=${videoId}`,
-                },
-              );
+                )
+              ) {
+                discovered.set(
+                  videoId,
+                  {
+                    videoId,
+                    title:
+                      item.snippet
+                        ?.title,
+                    channel:
+                      item.snippet
+                        ?.channelTitle,
+                    channelId:
+                      item.snippet
+                        ?.channelId,
+                    description:
+                      item.snippet
+                        ?.description,
+                    publishedAt:
+                      item.snippet
+                        ?.publishedAt,
+                    year,
+                    videoUrl:
+                      `https://www.youtube.com/watch?v=${videoId}`,
+                  },
+                );
+
+                videosFoundThisYear++;
+              }
             }
 
             pagesScanned++;
 
-            if (!data.nextPageToken) {
+            if (
+              !data.nextPageToken
+            ) {
               break;
             }
 
             pageToken =
               data.nextPageToken;
           }
+
+          yearlyStats[
+            String(year)
+          ] = videosFoundThisYear;
         }
 
         const discoveredVideos =
@@ -468,7 +511,9 @@ export class YouTubeResearchMCP extends McpAgent {
             discovered.values(),
           );
 
-        if (discoveredVideos.length === 0) {
+        if (
+          discoveredVideos.length === 0
+        ) {
           return {
             content: [
               {
@@ -491,11 +536,12 @@ export class YouTubeResearchMCP extends McpAgent {
           };
         }
 
-        // -----------------------------------------------------
-        // STEP 2: Fetch statistics in batches of 50
-        // -----------------------------------------------------
+        // =====================================================
+        // STEP 2: GET VIDEO STATISTICS
+        // =====================================================
 
-        const detailedVideos: any[] = [];
+        const detailedVideos: any[] =
+          [];
 
         for (
           let i = 0;
@@ -508,9 +554,10 @@ export class YouTubeResearchMCP extends McpAgent {
               i + 50,
             );
 
-          const videosUrl = new URL(
-            "https://www.googleapis.com/youtube/v3/videos",
-          );
+          const videosUrl =
+            new URL(
+              "https://www.googleapis.com/youtube/v3/videos",
+            );
 
           videosUrl.searchParams.set(
             "part",
@@ -532,9 +579,10 @@ export class YouTubeResearchMCP extends McpAgent {
             apiKey,
           );
 
-          const response = await fetch(
-            videosUrl.toString(),
-          );
+          const response =
+            await fetch(
+              videosUrl.toString(),
+            );
 
           if (!response.ok) {
             const errorText =
@@ -556,17 +604,20 @@ export class YouTubeResearchMCP extends McpAgent {
             await response.json();
 
           for (
-            const video of data.items || []
+            const video of
+              data.items || []
           ) {
-            const views = Number(
-              video.statistics
-                ?.viewCount || 0,
-            );
+            const views =
+              Number(
+                video.statistics
+                  ?.viewCount || 0,
+              );
 
-            const likes = Number(
-              video.statistics
-                ?.likeCount || 0,
-            );
+            const likes =
+              Number(
+                video.statistics
+                  ?.likeCount || 0,
+              );
 
             const comments =
               Number(
@@ -585,17 +636,18 @@ export class YouTubeResearchMCP extends McpAgent {
                   ).getTime()
                 : Date.now();
 
-            const ageDays = Math.max(
-              1,
-              Math.floor(
-                (Date.now() -
-                  publishedTime) /
-                  (1000 *
-                    60 *
-                    60 *
-                    24),
-              ),
-            );
+            const ageDays =
+              Math.max(
+                1,
+                Math.floor(
+                  (Date.now() -
+                    publishedTime) /
+                    (1000 *
+                      60 *
+                      60 *
+                      24),
+                ),
+              );
 
             const viewsPerDay =
               views / ageDays;
@@ -612,12 +664,14 @@ export class YouTubeResearchMCP extends McpAgent {
 
             const engagementRate =
               views > 0
-                ? (likes + comments) /
+                ? (likes +
+                    comments) /
                   views
                 : 0;
 
-            // Internal research score.
-            // This is NOT an official YouTube metric.
+            // -------------------------------------------------
+            // Internal research score
+            // -------------------------------------------------
 
             const logViews =
               Math.log10(
@@ -629,12 +683,14 @@ export class YouTubeResearchMCP extends McpAgent {
                 viewsPerDay + 1,
               );
 
+            const engagementPoints =
+              engagementRate *
+              100;
+
             const performanceScore =
               logViews * 0.55 +
               logViewsPerDay * 0.30 +
-              engagementRate *
-                100 *
-                0.15;
+              engagementPoints * 0.15;
 
             detailedVideos.push(
               {
@@ -658,6 +714,12 @@ export class YouTubeResearchMCP extends McpAgent {
                     ?.description,
 
                 publishedAt,
+
+                year: publishedAt
+                  ? new Date(
+                      publishedAt,
+                    ).getUTCFullYear()
+                  : null,
 
                 duration:
                   video
@@ -707,9 +769,9 @@ export class YouTubeResearchMCP extends McpAgent {
           }
         }
 
-        // -----------------------------------------------------
-        // STEP 3: Minimum views filter
-        // -----------------------------------------------------
+        // =====================================================
+        // STEP 3: MINIMUM VIEWS FILTER
+        // =====================================================
 
         const filtered =
           detailedVideos.filter(
@@ -718,99 +780,38 @@ export class YouTubeResearchMCP extends McpAgent {
               minViews,
           );
 
-        // -----------------------------------------------------
-        // STEP 4: Rank
-        // -----------------------------------------------------
+        // =====================================================
+        // STEP 4: CREATE SEPARATE RANKINGS
+        // =====================================================
 
-        filtered.sort(
-          (a, b) =>
-            b.performanceScore -
-            a.performanceScore,
-        );
-
-        const finalResults =
-          filtered.slice(
+        const byViews = [
+          ...filtered,
+        ]
+          .sort(
+            (a, b) =>
+              b.views - a.views,
+          )
+          .slice(
             0,
             topResults,
           );
 
-        // -----------------------------------------------------
-        // STEP 5: Return research report
-        // -----------------------------------------------------
+        const byViewsPerDay = [
+          ...filtered,
+        ]
+          .sort(
+            (a, b) =>
+              b.viewsPerDay -
+              a.viewsPerDay,
+          )
+          .slice(
+            0,
+            topResults,
+          );
 
-        const report = {
-          searchType:
-            "historical_high_performers",
-
-          channelId,
-
-          scannedYears: {
-            start: startYear,
-            end: endYear,
-          },
-
-          query:
-            query || null,
-
-          discoveredVideos:
-            discoveredVideos.length,
-
-          analyzedVideos:
-            detailedVideos.length,
-
-          videosAfterMinViewsFilter:
-            filtered.length,
-
-          returned:
-            finalResults.length,
-
-          rankingMethod: {
-            description:
-              "Internal research score combining total views, views per day, and engagement rate.",
-
-            weights: {
-              totalViews: 0.55,
-              viewsPerDay: 0.30,
-              engagement: 0.15,
-            },
-
-            note:
-              "Performance score is an internal research metric, not an official YouTube metric.",
-          },
-
-          results:
-            finalResults,
-        };
-
-        return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify(
-                report,
-                null,
-                2,
-              ),
-            },
-          ],
-        };
-      },
-    );
-  }
-}
-
-export default {
-  fetch(
-    request: Request,
-    env: Env,
-    ctx: ExecutionContext,
-  ) {
-    return YouTubeResearchMCP
-      .serve("/mcp")
-      .fetch(
-        request,
-        env,
-        ctx,
-      );
-  },
-};
+        const byEngagement = [
+          ...filtered,
+        ]
+          .sort(
+            (a, b) =>
+              b.e
