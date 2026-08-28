@@ -1,0 +1,16 @@
+name: Claude Auto Research
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 */5 * * *"
+
+jobs:
+  claude:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Test scheduler
+        run: |
+          echo "Claude automation triggered successfully"
+          date -u
