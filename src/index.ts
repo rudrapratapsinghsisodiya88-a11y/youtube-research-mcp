@@ -314,9 +314,276 @@ export class YouTubeResearchMCP extends McpAgent {
       },
     );
 
-
+   
+     // =========================================================
+    // TOOL 4: GET VIDEO COMMENTS
     // =========================================================
-    // TOOL 4: CHANNEL STATISTICS
+
+    this.server.tool(
+      "get_video_comments",
+      "Read and analyze YouTube comments from a video. Automatically follows pagination and collects comments for audience research, sentiment analysis, questions, feedback, content ideas, and audience insights.",
+
+      {
+        videoId: z
+          .string()
+          .describe(
+            "The YouTube video ID, for example dQw4w9WgXcQ",
+          ),
+
+        maxComments: z
+          .number()
+          .int()
+          .min(1)
+          .max(2000)
+          .default(500)
+          .describe(
+            "Maximum number of top-level comments to collect. The tool automatically follows pagination.",
+          ),
+
+        order: z
+          .enum([
+            "relevance",
+            "time",
+          ])
+          .default("relevance")
+          .describe(
+            "Comment ordering. Use relevance for audience research or time for newest comments.",
+          ),
+      },
+
+      async ({
+        videoId,
+        maxComments,
+        order,
+      }) => {
+
+        const apiKey =
+          (this.env as any)
+            .YOUTUBE_API_KEY;
+
+        if (!apiKey) {
+          return {
+            content: [
+              {
+                type: "text",
+                text:
+                  "YouTube API key is not configured.",
+              },
+            ],
+          };
+        }
+
+        const comments: any[] = [];
+
+        let pageToken:
+          string | undefined;
+
+        let pagesScanned = 0;
+
+        const maxPages = Math.ceil(
+          maxComments / 100,
+        );
+
+        try {
+
+          while (
+            comments.length <
+              maxComments &&
+            pagesScanned <
+              maxPages
+          ) {
+
+            const url =
+              new URL(
+                "https://www.googleapis.com/youtube/v3/commentThreads",
+              );
+
+            url.searchParams.set(
+              "part",
+              "snippet",
+            );
+
+            url.searchParams.set(
+              "videoId",
+              videoId,
+            );
+
+            url.searchParams.set(
+              "maxResults",
+              String(
+                Math.min(
+                  100,
+                  maxComments -
+                    comments.length,
+                ),
+              ),
+            );
+
+            url.searchParams.set(
+              "order",
+              order,
+            );
+
+            url.searchParams.set(
+              "textFormat",
+              "plainText",
+            );
+
+            url.searchParams.set(
+              "key",
+              apiKey,
+            );
+
+            if (pageToken) {
+              url.searchParams.set(
+                "pageToken",
+                pageToken,
+              );
+            }
+
+            const response =
+              await fetch(
+                url.toString(),
+              );
+
+            if (!response.ok) {
+
+              const errorText =
+                await response.text();
+
+              return {
+                content: [
+                  {
+                    type: "text",
+                    text:
+                      `YouTube comments API error: ${response.status} ${errorText}`,
+                  },
+                ],
+              };
+            }
+
+            const data: any =
+              await response.json();
+
+            const items =
+              data.items || [];
+
+            for (
+              const item of items
+            ) {
+
+              const comment =
+                item.snippet
+                  ?.topLevelComment
+                  ?.snippet;
+
+              if (!comment) {
+                continue;
+              }
+
+              comments.push({
+                commentId:
+                  item.snippet
+                    ?.topLevelComment
+                    ?.id,
+
+                author:
+                  comment
+                    ?.authorDisplayName,
+
+                text:
+                  comment
+                    ?.textDisplay,
+
+                likeCount:
+                  Number(
+                    comment
+                      ?.likeCount || 0,
+                  ),
+
+                publishedAt:
+                  comment
+                    ?.publishedAt,
+
+                updatedAt:
+                  comment
+                    ?.updatedAt,
+
+                totalReplies:
+                  Number(
+                    item.snippet
+                      ?.totalReplyCount ||
+                      0,
+                  ),
+              });
+
+              if (
+                comments.length >=
+                maxComments
+              ) {
+                break;
+              }
+            }
+
+            pagesScanned++;
+
+            if (
+              !data.nextPageToken
+            ) {
+              break;
+            }
+
+            pageToken =
+              data.nextPageToken;
+          }
+
+          const result = {
+            videoId,
+
+            commentsRequested:
+              maxComments,
+
+            commentsReturned:
+              comments.length,
+
+            pagesScanned,
+
+            order,
+
+            comments,
+          };
+
+          return {
+            content: [
+              {
+                type: "text",
+                text:
+                  JSON.stringify(
+                    result,
+                    null,
+                    2,
+                  ),
+              },
+            ],
+          };
+
+        } catch (error: any) {
+
+          return {
+            content: [
+              {
+                type: "text",
+                text:
+                  `Failed to fetch YouTube comments: ${error?.message || String(error)}`,
+              },
+            ],
+          };
+        }
+      },
+    );
+    
+    // =========================================================
+    // TOOL 5: CHANNEL STATISTICS
     // =========================================================
 
     this.server.tool(
@@ -475,7 +742,7 @@ export class YouTubeResearchMCP extends McpAgent {
 
 
     // =========================================================
-    // TOOL 5: HISTORICAL HIGH PERFORMERS
+    // TOOL 6: HISTORICAL HIGH PERFORMERS
     // =========================================================
 
     this.server.tool(
