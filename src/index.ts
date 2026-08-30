@@ -582,8 +582,235 @@ export class YouTubeResearchMCP extends McpAgent {
       },
     );
     
+    
     // =========================================================
-    // TOOL 5: CHANNEL STATISTICS
+    // TOOL 5: GET VIDEO THUMBNAIL
+    // =========================================================
+
+    this.server.tool(
+      "get_video_thumbnail",
+      "Fetch the actual YouTube video thumbnail and return it as an MCP image for visual analysis.",
+      {
+        videoId: z
+          .string()
+          .describe(
+            "The YouTube video ID, for example dQw4w9WgXcQ",
+          ),
+      },
+
+      async ({ videoId }) => {
+        const apiKey =
+          (this.env as any)
+            .YOUTUBE_API_KEY;
+
+        if (!apiKey) {
+          return {
+            content: [
+              {
+                type: "text",
+                text:
+                  "YouTube API key is not configured.",
+              },
+            ],
+          };
+        }
+
+        try {
+          // -------------------------------------------------
+          // STEP 1: Get thumbnail URL from YouTube API
+          // -------------------------------------------------
+
+          const apiUrl =
+            new URL(
+              "https://www.googleapis.com/youtube/v3/videos",
+            );
+
+          apiUrl.searchParams.set(
+            "part",
+            "snippet",
+          );
+
+          apiUrl.searchParams.set(
+            "id",
+            videoId,
+          );
+
+          apiUrl.searchParams.set(
+            "key",
+            apiKey,
+          );
+
+          const apiResponse =
+            await fetch(
+              apiUrl.toString(),
+            );
+
+          if (!apiResponse.ok) {
+            const errorText =
+              await apiResponse.text();
+
+            return {
+              content: [
+                {
+                  type: "text",
+                  text:
+                    `YouTube API error: ${apiResponse.status} ${errorText}`,
+                },
+              ],
+            };
+          }
+
+          const apiData: any =
+            await apiResponse.json();
+
+          if (
+            !apiData.items ||
+            apiData.items.length === 0
+          ) {
+            return {
+              content: [
+                {
+                  type: "text",
+                  text:
+                    "Video not found.",
+                },
+              ],
+            };
+          }
+
+          const video =
+            apiData.items[0];
+
+          const thumbnails =
+            video.snippet?.thumbnails;
+
+          const thumbnailUrl =
+            thumbnails?.maxres?.url ||
+            thumbnails?.standard?.url ||
+            thumbnails?.high?.url ||
+            thumbnails?.medium?.url ||
+            thumbnails?.default?.url;
+
+          if (!thumbnailUrl) {
+            return {
+              content: [
+                {
+                  type: "text",
+                  text:
+                    "No thumbnail was available for this video.",
+                },
+              ],
+            };
+          }
+
+          // -------------------------------------------------
+          // STEP 2: Fetch the actual thumbnail image
+          // -------------------------------------------------
+
+          const imageResponse =
+            await fetch(
+              thumbnailUrl,
+            );
+
+          if (!imageResponse.ok) {
+            return {
+              content: [
+                {
+                  type: "text",
+                  text:
+                    `Could not fetch thumbnail image: ${imageResponse.status}`,
+                },
+              ],
+            };
+          }
+
+          // -------------------------------------------------
+          // STEP 3: Convert image bytes to Base64
+          // -------------------------------------------------
+
+          const imageBuffer =
+            await imageResponse.arrayBuffer();
+
+          const bytes =
+            new Uint8Array(
+              imageBuffer,
+            );
+
+          let binary = "";
+
+          const chunkSize =
+            0x8000;
+
+          for (
+            let i = 0;
+            i < bytes.length;
+            i += chunkSize
+          ) {
+            const chunk =
+              bytes.subarray(
+                i,
+                Math.min(
+                  i + chunkSize,
+                  bytes.length,
+                ),
+              );
+
+            binary += String.fromCharCode(
+              ...chunk,
+            );
+          }
+
+          const base64 =
+            btoa(binary);
+
+          // -------------------------------------------------
+          // STEP 4: Detect MIME type
+          // -------------------------------------------------
+
+          const contentType =
+            imageResponse.headers.get(
+              "content-type",
+            ) || "image/jpeg";
+
+          const mimeType =
+            contentType.split(";")[0];
+
+          // -------------------------------------------------
+          // STEP 5: Return actual MCP image
+          // -------------------------------------------------
+
+          return {
+            content: [
+              {
+                type: "image",
+                data: base64,
+                mimeType,
+              },
+              {
+                type: "text",
+                text:
+                  `Thumbnail fetched successfully for video ${videoId}.`,
+              },
+            ],
+          };
+
+        } catch (error: any) {
+          return {
+            content: [
+              {
+                type: "text",
+                text:
+                  `Failed to fetch YouTube thumbnail: ${error?.message || String(error)}`,
+              },
+            ],
+          };
+        }
+      }, 
+    );
+
+    
+    // =========================================================
+    // TOOL 6: CHANNEL STATISTICS
     // =========================================================
 
     this.server.tool(
@@ -742,7 +969,7 @@ export class YouTubeResearchMCP extends McpAgent {
 
 
     // =========================================================
-    // TOOL 6: HISTORICAL HIGH PERFORMERS
+    // TOOL 7: HISTORICAL HIGH PERFORMERS
     // =========================================================
 
     this.server.tool(
