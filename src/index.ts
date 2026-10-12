@@ -1731,6 +1731,7 @@ export class YouTubeResearchMCP extends McpAgent {
         };
       },
     );
+
     
     // =========================================================
     // TOOL 8: GET YOUTUBE VIDEO TRANSCRIPT
