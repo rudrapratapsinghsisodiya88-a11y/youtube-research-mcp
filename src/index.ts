@@ -1731,6 +1731,285 @@ export class YouTubeResearchMCP extends McpAgent {
         };
       },
     );
+    
+    // =========================================================
+    // TOOL 8: GET YOUTUBE VIDEO TRANSCRIPT
+    // =========================================================
+
+    this.server.tool(
+      "get_youtube_transcript",
+      "Fetch the available captions or transcript of a public YouTube video. Supports video URLs or video IDs and language selection. Returns timestamped transcript segments.",
+
+      {
+        videoUrl: z
+          .string()
+          .describe(
+            "YouTube video URL or video ID",
+          ),
+
+        language: z
+          .string()
+          .default("en")
+          .describe(
+            "Preferred caption language code, such as en or hi. Falls back to the first available language if unavailable.",
+          ),
+      },
+
+      async ({ videoUrl, language }) => {
+        try {
+          // STEP 1: Extract video ID
+
+          const match = videoUrl.match(
+            /(?:youtu\.be\/|youtube\.com\/(?:(?:watch\?.*?v=)|(?:embed\/)|(?:shorts\/)|(?:live\/)))([a-zA-Z0-9_-]{11})|^([a-zA-Z0-9_-]{11})$/,
+          );
+
+          const videoId = match
+            ? (match[1] || match[2])
+            : null;
+
+          if (!videoId) {
+            return {
+              content: [{
+                type: "text",
+                text: "Invalid YouTube URL or video ID.",
+              }],
+            };
+          }
+
+          // STEP 2: Fetch the YouTube watch page
+
+          const pageResponse = await fetch(
+            `https://www.youtube.com/watch?v=${videoId}`,
+            {
+              headers: {
+                "User-Agent":
+                  "Mozilla/5.0 (compatible; YouTubeResearchMCP/1.0)",
+                "Accept-Language":
+                  `${language},en;q=0.8`,
+              },
+            },
+          );
+
+          if (!pageResponse.ok) {
+            return {
+              content: [{
+                type: "text",
+                text:
+                  `Could not access YouTube video page: HTTP ${pageResponse.status}`,
+              }],
+            };
+          }
+
+          const html = await pageResponse.text();
+
+          // STEP 3: Extract player response JSON
+
+          const marker =
+            "ytInitialPlayerResponse = ";
+
+          const markerIndex = html.indexOf(marker);
+
+          if (markerIndex === -1) {
+            return {
+              content: [{
+                type: "text",
+                text:
+                  "YouTube player data was not found. YouTube may have changed its page format or restricted the request.",
+              }],
+            };
+          }
+
+          const jsonStart =
+            html.indexOf("{", markerIndex + marker.length);
+
+          if (jsonStart === -1) {
+            throw new Error(
+              "Could not locate YouTube player JSON.",
+            );
+          }
+
+          let depth = 0;
+          let inString = false;
+          let escaped = false;
+          let jsonEnd = -1;
+
+          for (
+            let i = jsonStart;
+            i < html.length;
+            i++
+          ) {
+            const char = html[i];
+
+            if (inString) {
+              if (escaped) {
+                escaped = false;
+              } else if (char === "\\") {
+                escaped = true;
+              } else if (char === '"') {
+                inString = false;
+              }
+              continue;
+            }
+
+            if (char === '"') {
+              inString = true;
+            } else if (char === "{") {
+              depth++;
+            } else if (char === "}") {
+              depth--;
+
+              if (depth === 0) {
+                jsonEnd = i + 1;
+                break;
+              }
+            }
+          }
+
+          if (jsonEnd === -1) {
+            throw new Error(
+              "Could not parse YouTube player data.",
+            );
+          }
+
+          const player = JSON.parse(
+            html.slice(jsonStart, jsonEnd),
+          );
+
+          // STEP 4: Find available caption tracks
+
+          const tracks =
+            player.captions
+              ?.playerCaptionsTracklistRenderer
+              ?.captionTracks || [];
+
+          if (tracks.length === 0) {
+            return {
+              content: [{
+                type: "text",
+                text:
+                  "No accessible captions or transcript were found for this video.",
+              }],
+            };
+          }
+
+          const selectedTrack =
+            tracks.find(
+              (track: any) =>
+                track.languageCode?.toLowerCase() ===
+                language.toLowerCase(),
+            ) ||
+            tracks.find(
+              (track: any) =>
+                track.languageCode?.toLowerCase().startsWith(
+                  language.toLowerCase() + "-",
+                ),
+            ) ||
+            tracks[0];
+
+          // STEP 5: Fetch transcript segments
+
+          const captionUrl = new URL(
+            selectedTrack.baseUrl,
+          );
+
+          captionUrl.searchParams.set(
+            "fmt",
+            "json3",
+          );
+
+          const captionResponse = await fetch(
+            captionUrl.toString(),
+          );
+
+          if (!captionResponse.ok) {
+            return {
+              content: [{
+                type: "text",
+                text:
+                  `Could not fetch captions: HTTP ${captionResponse.status}`,
+              }],
+            };
+          }
+
+          const captionData: any =
+            await captionResponse.json();
+
+          const transcript: any[] = [];
+
+          for (
+            const event of captionData.events || []
+          ) {
+            if (!event.segs) continue;
+
+            const text = event.segs
+              .map((segment: any) => segment.utf8 || "")
+              .join("")
+              .replace(/\s+/g, " ")
+              .trim();
+
+            if (!text) continue;
+
+            transcript.push({
+              startSeconds:
+                Math.round(
+                  (event.tStartMs || 0) / 1000 * 1000,
+                ) / 1000,
+
+              durationSeconds:
+                Math.round(
+                  (event.dDurationMs || 0) / 1000 * 1000,
+                ) / 1000,
+
+              text,
+            });
+          }
+
+          if (transcript.length === 0) {
+            return {
+              content: [{
+                type: "text",
+                text:
+                  "Caption track was found, but no transcript segments were returned.",
+              }],
+            };
+          }
+
+          // STEP 6: Return transcript
+
+          const result = {
+            videoId,
+            videoUrl:
+              `https://www.youtube.com/watch?v=${videoId}`,
+            title:
+              player.videoDetails?.title || null,
+            requestedLanguage: language,
+            actualLanguage:
+              selectedTrack.languageCode || null,
+            languageName:
+              selectedTrack.name?.simpleText || null,
+            isAutoGenerated:
+              Boolean(selectedTrack.kind === "asr"),
+            segmentCount: transcript.length,
+            transcript,
+          };
+
+          return {
+            content: [{
+              type: "text",
+              text: JSON.stringify(result, null, 2),
+            }],
+          };
+        } catch (error: any) {
+          return {
+            content: [{
+              type: "text",
+              text:
+                `Transcript retrieval failed: ${error?.message || String(error)}`,
+            }],
+          };
+        }
+      },
+    );
   }
 }
 
